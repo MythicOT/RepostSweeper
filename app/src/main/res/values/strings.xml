@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Repost Sweeper</string>
+    <string name="service_desc">Shows a small Start/Stop panel inside Instagram and taps Select, the checkboxes, and Remove on your Reposts page for you. It only reads Instagram\'s screen and sends nothing anywhere.</string>
+</resources>
