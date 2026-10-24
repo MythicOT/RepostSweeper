@@ -258,8 +258,11 @@ public class SweepService extends AccessibilityService {
             int n = Math.min(BATCH, items.size());
             say("Selecting " + n + "…");
             for (int i = 0; i < n && running; i++) {
-                tap(items.get(i));
-                sleep(180);
+                AccessibilityNodeInfo it = items.get(i);
+                it.refresh();
+                if (alreadyTicked(it)) continue;
+                tap(it);
+                sleep(220);
             }
             if (!running) break;
 
@@ -386,11 +389,53 @@ public class SweepService extends AccessibilityService {
                 }
             }
         }
-        Collections.sort(boxes, (a, b) -> {
+        // One entry per repost tile. A checkbox and the tile around it (or a label inside it) all
+        // lead to the same tap target; tapping it twice ticks then unticks the same repost.
+        List<AccessibilityNodeInfo> targets = new ArrayList<>();
+        for (AccessibilityNodeInfo b : boxes) {
+            if (alreadyTicked(b)) continue;
+            AccessibilityNodeInfo t = clickableSelfOrParent(b);
+            targets.add(t != null ? t : b);
+        }
+        // Biggest first, so a whole tile wins over a small checkbox sitting inside it.
+        Collections.sort(targets, (a, b) -> {
+            Rect ra = bounds(a), rb = bounds(b);
+            return Long.compare((long) rb.width() * rb.height(), (long) ra.width() * ra.height());
+        });
+        List<AccessibilityNodeInfo> unique = new ArrayList<>();
+        List<Rect> taken = new ArrayList<>();
+        for (AccessibilityNodeInfo t : targets) {
+            Rect r = bounds(t);
+            if (r.isEmpty()) continue;
+            boolean dup = false;
+            for (Rect k : taken) {
+                if (k.contains(r.centerX(), r.centerY()) || r.contains(k.centerX(), k.centerY())) {
+                    dup = true;
+                    break;
+                }
+            }
+            if (!dup) {
+                unique.add(t);
+                taken.add(r);
+            }
+        }
+        Collections.sort(unique, (a, b) -> {
             Rect ra = bounds(a), rb = bounds(b);
             return ra.top != rb.top ? Integer.compare(ra.top, rb.top) : Integer.compare(ra.left, rb.left);
         });
-        return boxes;
+        return unique;
+    }
+
+    /** True if this node, something near it, or its tile already shows as selected. */
+    private static boolean alreadyTicked(AccessibilityNodeInfo n) {
+        AccessibilityNodeInfo cur = n;
+        for (int i = 0; cur != null && i < 4; i++) {
+            if (cur.isChecked() || cur.isSelected()) return true;
+            String l = label(cur);
+            if (l.equals("selected") || l.startsWith("selected,") || l.endsWith(", selected")) return true;
+            cur = cur.getParent();
+        }
+        return false;
     }
 
     private AccessibilityNodeInfo firstClickable(AccessibilityNodeInfo n, int depth) {
